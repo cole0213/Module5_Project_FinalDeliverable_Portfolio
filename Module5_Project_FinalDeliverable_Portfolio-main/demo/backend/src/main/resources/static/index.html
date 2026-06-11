@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bursty Traffic Demo</title>
+    <style>
+        :root {
+            --bg:       #0f1117;
+            --surface:  #161b27;
+            --card:     #1a1f2e;
+            --border:   #252d42;
+            --text:     #e2e8f0;
+            --muted:    #4a5568;
+            --subtle:   #2d3748;
+            --green:    #10b981;
+            --orange:   #f59e0b;
+            --red:      #ef4444;
+            --blue:     #3b82f6;
+            --mono:     'Courier New', Courier, monospace;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+            padding: 20px 24px 28px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* ── Header ── */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .site-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--muted);
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        #status-badge {
+            padding: 6px 22px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            letter-spacing: 0.2em;
+            transition: background 0.4s, color 0.4s, border-color 0.4s, box-shadow 0.4s;
+            border: 1px solid;
+        }
+        .s-normal   { background: rgba(16,185,129,0.1);  color: var(--green);  border-color: var(--green);  box-shadow: 0 0 12px rgba(16,185,129,0.2); }
+        .s-burst    { background: rgba(245,158,11,0.1);  color: var(--orange); border-color: var(--orange); box-shadow: 0 0 12px rgba(245,158,11,0.2); }
+        .s-critical { background: rgba(239,68,68,0.12);  color: var(--red);    border-color: var(--red);    box-shadow: 0 0 14px rgba(239,68,68,0.3);  animation: pulse-red 1s infinite; }
+
+        @keyframes pulse-red { 0%,100% { box-shadow: 0 0 14px rgba(239,68,68,0.3); } 50% { box-shadow: 0 0 24px rgba(239,68,68,0.6); } }
+
+        #conn-pill {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 0.7rem; color: var(--muted);
+        }
+        .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); transition: background 0.3s, box-shadow 0.3s; }
+        .dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+        /* ── Metric cards ── */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px 20px 16px;
+            transition: border-color 0.3s;
+        }
+
+        .card-label {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .card-value {
+            font-family: var(--mono);
+            font-size: 2.2rem;
+            font-weight: 700;
+            line-height: 1;
+            transition: color 0.3s;
+        }
+
+        .card-sub {
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-top: 6px;
+            transition: color 0.3s;
+        }
+
+        /* ── Main content ── */
+        .main-row {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px 20px;
+        }
+
+        .panel-label {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+            margin-bottom: 14px;
+        }
+
+        /* ── Server visualization ── */
+        .server-section { margin-bottom: 18px; }
+        .server-section:last-child { margin-bottom: 0; }
+
+        .section-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--subtle);
+            margin-bottom: 8px;
+        }
+
+        .boxes { display: flex; flex-wrap: wrap; gap: 7px; }
+
+        .box {
+            width: 42px; height: 42px;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-family: var(--mono);
+            font-size: 0.62rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            transition: background 0.35s, border-color 0.35s, color 0.35s, box-shadow 0.35s, opacity 0.35s;
+        }
+
+        .box-onprem {
+            background: rgba(100,116,139,0.12);
+            border: 1px solid #4a5568;
+            color: #94a3b8;
+        }
+
+        .box-cloud-on {
+            background: rgba(59,130,246,0.15);
+            border: 1px solid var(--blue);
+            color: var(--blue);
+            box-shadow: 0 0 8px rgba(59,130,246,0.25);
+            animation: pop-in 0.3s ease;
+        }
+
+        .box-cloud-off {
+            background: transparent;
+            border: 1px dashed #252d42;
+            color: #252d42;
+        }
+
+        @keyframes pop-in {
+            from { opacity: 0; transform: scale(0.7); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+
+        /* capacity bar under server viz */
+        .cap-bar-wrap { margin-top: 18px; }
+        .cap-bar-label { font-size: 0.65rem; color: var(--muted); margin-bottom: 5px; display: flex; justify-content: space-between; }
+        .cap-bar-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+        .cap-bar-fill  { height: 100%; border-radius: 3px; transition: width 0.5s, background 0.4s; }
+
+        /* ── Controls ── */
+        .controls {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .ctrl-sep { width: 1px; height: 28px; background: var(--border); margin: 0 4px; }
+
+        button {
+            padding: 9px 18px;
+            border-radius: 8px;
+            border: 1px solid;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            letter-spacing: 0.01em;
+        }
+        button:active { transform: scale(0.96); }
+
+        .btn-red   { background: rgba(239,68,68,0.1);   color: var(--red);    border-color: rgba(239,68,68,0.4); }
+        .btn-gray  { background: rgba(74,85,104,0.15);  color: #94a3b8;       border-color: rgba(74,85,104,0.4); }
+        .btn-blue  { background: rgba(59,130,246,0.1);  color: var(--blue);   border-color: rgba(59,130,246,0.4); }
+        .btn-green { background: rgba(16,185,129,0.1);  color: var(--green);  border-color: rgba(16,185,129,0.4); }
+
+        .btn-red:hover   { background: rgba(239,68,68,0.22);   border-color: var(--red); }
+        .btn-gray:hover  { background: rgba(74,85,104,0.3);    border-color: #94a3b8; }
+        .btn-blue:hover  { background: rgba(59,130,246,0.22);  border-color: var(--blue); }
+        .btn-green:hover { background: rgba(16,185,129,0.22);  border-color: var(--green); }
+
+        /* toggle ON state */
+        .btn-blue.tog-on  { background: rgba(59,130,246,0.25);  border-color: var(--blue);  box-shadow: 0 0 10px rgba(59,130,246,0.35); }
+        .btn-green.tog-on { background: rgba(16,185,129,0.25);  border-color: var(--green); box-shadow: 0 0 10px rgba(16,185,129,0.35); }
+        .btn-blue:not(.tog-on)  { opacity: 0.65; }
+        .btn-green:not(.tog-on) { opacity: 0.65; }
+    </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+    <div class="site-title">⚡ Bursty Traffic Demo</div>
+    <div class="header-right">
+        <div id="conn-pill">
+            <div class="dot" id="conn-dot"></div>
+            <span id="conn-label">Connecting…</span>
+        </div>
+        <div id="status-badge" class="s-normal">NORMAL</div>
+    </div>
+</header>
+
+<!-- ── Metric cards ── -->
+<div class="metrics-grid">
+    <div class="card">
+        <div class="card-label">Current RPS</div>
+        <div class="card-value" id="m-rps">—</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Active Servers</div>
+        <div class="card-value" id="m-total-servers">3</div>
+        <div class="card-sub" id="m-servers-detail">On-prem: 3 | Cloud: 0</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Queue Size</div>
+        <div class="card-value" id="m-queue">0</div>
+        <div class="card-sub">waiting room</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Processed / Dropped</div>
+        <div class="card-value" id="m-processed">0</div>
+        <div class="card-sub" id="m-dropped">dropped: 0</div>
+    </div>
+</div>
+
+<!-- ── Chart + Server viz ── -->
+<div class="main-row">
+    <div class="panel">
+        <div class="panel-label">Real-Time RPS — last 30 seconds</div>
+        <canvas id="rpsChart" height="180"></canvas>
+    </div>
+
+    <div class="panel">
+        <div class="panel-label">Server Pool</div>
+
+        <div class="server-section">
+            <div class="section-label">On-Premise (fixed)</div>
+            <div class="boxes" id="onprem-boxes"></div>
+        </div>
+
+        <div class="server-section">
+            <div class="section-label">Cloud Burst (dynamic)</div>
+            <div class="boxes" id="cloud-boxes"></div>
+        </div>
+
+        <div class="cap-bar-wrap">
+            <div class="cap-bar-label">
+                <span>Utilisation</span>
+                <span id="util-pct">0%</span>
+            </div>
+            <div class="cap-bar-track">
+                <div class="cap-bar-fill" id="cap-bar" style="width:0%;background:var(--green)"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Controls ── -->
+<div class="controls">
+    <button class="btn-red"   onclick="postAction('/api/burst/start')">🎫 티켓 오픈!</button>
+    <button class="btn-gray"  onclick="postAction('/api/burst/stop')">평상시로</button>
+    <div class="ctrl-sep"></div>
+    <button class="btn-blue"  id="btn-cloud"   onclick="postAction('/api/cloud-bursting/toggle')">☁️ Cloud Bursting</button>
+    <button class="btn-green" id="btn-waiting" onclick="postAction('/api/waiting-room/toggle')">🎫 Waiting Room</button>
+    <div class="ctrl-sep"></div>
+    <button class="btn-gray"  onclick="postAction('/api/reset')">↺ Reset</button>
+</div>
+
+<!-- ── Scripts ── -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<script>
+(function () {
+    'use strict';
+
+    const HISTORY   = 30;
+    const RPS_PER_THREAD = 50; // ~20ms task → ~50 req/s per thread
+    const MAX_CLOUD = 17;
+
+    // ── Chart ──────────────────────────────────────────
+    const rpsHistory = new Array(HISTORY).fill(0);
+    const capHistory = new Array(HISTORY).fill(150); // 3 threads * 50
+
+    const labels = Array.from({ length: HISTORY }, (_, i) => {
+        const s = i - HISTORY + 1;
+        return s === 0 ? 'now' : `${s}s`;
+    });
+
+    const chart = new Chart(document.getElementById('rpsChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Actual RPS',
+                    data: rpsHistory,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59,130,246,0.07)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: true,
+                    tension: 0.35,
+                    order: 1,
+                },
+                {
+                    label: 'Capacity',
+                    data: capHistory,
+                    borderColor: 'rgba(239,68,68,0.7)',
+                    borderWidth: 2,
+                    borderDash: [6, 4],
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0,
+                    order: 0,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            animation: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    labels: { color: '#4a5568', boxWidth: 18, font: { size: 11 } }
+                },
+                tooltip: {
+                    backgroundColor: '#1a1f2e',
+                    borderColor: '#252d42',
+                    borderWidth: 1,
+                    titleColor: '#e2e8f0',
+                    bodyColor: '#94a3b8',
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: '#4a5568', font: { size: 10 }, maxTicksLimit: 10 },
+                    grid:  { color: '#1a1f2e' }
+                },
+                y: {
+                    min: 0,
+                    ticks: { color: '#4a5568', font: { size: 10 } },
+                    grid:  { color: '#1a1f2e' }
+                }
+            }
+        }
+    });
+
+    // ── Server boxes ──────────────────────────────────
+    const onPremContainer = document.getElementById('onprem-boxes');
+    const cloudContainer  = document.getElementById('cloud-boxes');
+
+    for (let i = 0; i < 3; i++) {
+        const b = document.createElement('div');
+        b.className = 'box box-onprem';
+        b.textContent = `S${i + 1}`;
+        onPremContainer.appendChild(b);
+    }
+
+    const cloudBoxEls = [];
+    for (let i = 0; i < MAX_CLOUD; i++) {
+        const b = document.createElement('div');
+        b.className = 'box box-cloud-off';
+        b.textContent = `C${i + 1}`;
+        cloudContainer.appendChild(b);
+        cloudBoxEls.push(b);
+    }
+
+    let prevCloudCount = 0;
+    function updateCloudBoxes(count) {
+        if (count === prevCloudCount) return;
+        prevCloudCount = count;
+        cloudBoxEls.forEach((b, i) => {
+            b.className = 'box ' + (i < count ? 'box-cloud-on' : 'box-cloud-off');
+        });
+    }
+
+    // ── UI update ────────────────────────────────────
+    function updateUI(m) {
+        // Status badge
+        const badge = document.getElementById('status-badge');
+        const s = (m.status || 'NORMAL').toUpperCase();
+        badge.textContent = s;
+        badge.className = { NORMAL: 's-normal', BURST: 's-burst', CRITICAL: 's-critical' }[s] || 's-normal';
+
+        // Metric cards
+        document.getElementById('m-rps').textContent = m.rps.toLocaleString();
+        const total = m.onPremiseServers + m.cloudServers;
+        document.getElementById('m-total-servers').textContent = total;
+        document.getElementById('m-servers-detail').textContent =
+            `On-prem: ${m.onPremiseServers} | Cloud: ${m.cloudServers}`;
+
+        const qEl = document.getElementById('m-queue');
+        qEl.textContent = m.queueSize.toLocaleString();
+        qEl.style.color = m.queueSize > 300 ? 'var(--red)' : m.queueSize > 80 ? 'var(--orange)' : 'var(--text)';
+
+        document.getElementById('m-processed').textContent = m.processed.toLocaleString();
+        const dEl = document.getElementById('m-dropped');
+        dEl.textContent = `dropped: ${m.dropped.toLocaleString()}`;
+        dEl.style.color = m.dropped > 0 ? 'var(--red)' : 'var(--muted)';
+
+        // Chart — push new data point
+        const capacity = total * RPS_PER_THREAD;
+        rpsHistory.shift(); rpsHistory.push(m.rps);
+        capHistory.shift(); capHistory.push(capacity);
+        chart.update('none');
+
+        // Utilisation bar
+        const pct = capacity > 0 ? Math.min(100, Math.round((m.rps / capacity) * 100)) : 0;
+        const bar = document.getElementById('cap-bar');
+        bar.style.width = pct + '%';
+        bar.style.background = pct > 90 ? 'var(--red)' : pct > 60 ? 'var(--orange)' : 'var(--green)';
+        document.getElementById('util-pct').textContent = pct + '%';
+
+        // Server boxes
+        updateCloudBoxes(m.cloudServers);
+
+        // Toggle buttons
+        document.getElementById('btn-cloud').classList.toggle('tog-on', !!m.cloudBurstingEnabled);
+        document.getElementById('btn-waiting').classList.toggle('tog-on', !!m.waitingRoomEnabled);
+    }
+
+    // ── REST helpers ─────────────────────────────────
+    function postAction(path) {
+        fetch(path, { method: 'POST' })
+            .then(r => r.json())
+            .then(updateUI)
+            .catch(err => console.warn('POST failed:', err));
+    }
+    // Expose to onclick handlers
+    window.postAction = postAction;
+
+    // ── WebSocket / STOMP ────────────────────────────
+    function connect() {
+        const socket = new SockJS('/ws');
+        const client = Stomp.over(socket);
+        client.debug = null; // suppress frame logs
+
+        client.connect({}, function () {
+            document.getElementById('conn-dot').className = 'dot on';
+            document.getElementById('conn-label').textContent = 'Connected';
+
+            client.subscribe('/topic/metrics', function (frame) {
+                try { updateUI(JSON.parse(frame.body)); }
+                catch (e) { console.warn('Bad metrics frame', e); }
+            });
+        }, function () {
+            document.getElementById('conn-dot').className = 'dot';
+            document.getElementById('conn-label').textContent = 'Reconnecting…';
+            setTimeout(connect, 3000);
+        });
+    }
+
+    connect();
+})();
+</script>
+</body>
+</html>
